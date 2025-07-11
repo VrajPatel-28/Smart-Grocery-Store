@@ -120,14 +120,5 @@ LOGOUT_REDIRECT_URL = '/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# ✅ Render-compatible ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS setup
-RENDER_DOMAIN = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
-
-if RENDER_DOMAIN:
-    ALLOWED_HOSTS = ['smart-grosery-store.onrender.com'] 
-    CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_DOMAIN}"]
-else:
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
-    CSRF_TRUSTED_ORIGINS = ["http://localhost"]
 
 
