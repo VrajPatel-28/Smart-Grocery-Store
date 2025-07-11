@@ -43,11 +43,6 @@ else:
     CSRF_TRUSTED_ORIGINS = ["http://localhost"]
 
 # Application definition
-import os
-from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
 AUTH_USER_MODEL = "core.CustomUser"
 
 INSTALLED_APPS = [
