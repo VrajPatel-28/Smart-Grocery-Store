@@ -3,6 +3,7 @@ from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LogoutView
 from django.urls import path
+from django.contrib import admin
 
 from .views import (
     AnalyticsView,
@@ -20,6 +21,7 @@ from .views import (
 
 urlpatterns = [
     path('', DashboardView.as_view(), name='dashboard'),
+    path('admin/', admin.site.urls),
     # path('analytics/query/', run_sql_query, name='ask_ai'),
     path('login/',
          auth_views.LoginView.as_view(template_name='login.html'),
@@ -36,5 +38,6 @@ urlpatterns = [
     path('purchases/add/', PurchaseCreateView.as_view(), name='purchase_add'),
     path("upload-receipt/", ReceiptUploadView.as_view(),
          name="upload_receipt"),
-    path("analytics/", AnalyticsView.as_view(), name="analytics")
+    path("analytics/", AnalyticsView.as_view(), name="analytics"),
+    
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
