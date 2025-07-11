@@ -1,0 +1,730 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Grocery Insight</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'style.css' %}">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+    <div class="container">
+      <a class="navbar-brand fw-bold text-primary d-flex align-items-center" href="{% url 'dashboard' %}">
+        <i class="fas fa-shopping-cart me-2 gradient-icon"></i>
+        Smart Grocery Insight
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom {% if view_type == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">
+              <i class="fas fa-home me-1"></i> Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom {% if view_type == 'list' %}active{% endif %}" href="{% url 'purchase_list' %}">
+              <i class="fas fa-receipt me-1"></i> Purchases
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="{% url 'upload_receipt' %}" class=" nav-link nav-link-custom btn btn-outline-secondary">
+              <i class="fas fa-upload me-1"></i> Upload Receipt
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link nav-link-custom" href="{% url 'analytics' %}" onclick="showView('analytics')">
+              <i class="fas fa-chart-line me-1"></i> Analytics
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'profile' %}"><i class="fas fa-user me-1"></i> Profile</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+<div class="container my-5">
+      {% if messages %}
+          {% for message in messages %}
+  <div class="alert alert-{% if message.tags %}{{ message.tags }}{% else %}info{% endif %} alert-dismissible fade show mb-3" role="alert">
+      <i class="{% if message.tags == 'success' %}text-success{% elif message.tags == 'warning' %}text-warning{% elif message.tags == 'error' %}text-danger{% else %}text-info{% endif %} mr-2 fas fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'warning' %}exclamation-triangle{% elif message.tags == 'error' %}times-circle{% else %}info-circle{% endif %}"></i>
+      <span>{{ message }}</span>
+      <button type="button" class="close" data-dismiss="alert" aria-label="Close" style="position: absolute; top: 50%; right: 1rem; transform: translateY(-50%); color: inherit; text-decoration: none; opacity: 0.6; transition: opacity 0.2s ease-in-out; cursor: pointer;">
+          <span aria-hidden="true">&times;</span>
+      </button>
+  </div>
+          {% endfor %}
+      {% endif %}
+</div>
+  <!-- Main Content -->
+  <main class="min-vh-100">
+    
+    {# ===== Dashboard ===== #}
+    {% if view_type == "dashboard" %}
+    <div id="dashboard" class="view active">
+      <!-- Dashboard Header -->
+      <div class="dashboard-header">
+        <div class="container">
+          <h1 class="dashboard-title">
+            <i class="fas fa-tachometer-alt me-3"></i>
+            Dashboard
+          </h1>
+          <p class="lead mb-0 opacity-75">Welcome back! Here's your grocery shopping overview</p>
+        </div>
+      </div>
+
+      <div class="container my-6">
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card success">
+            <div class="stat-icon">
+              <i class="fas fa-dollar-sign"></i>
+            </div>
+            <div class="stat-value">₹{{ total_spent|floatformat:2 }}</div>
+            <div class="stat-label" style="margin-bottom: 8px;margin-left: 15px;" >Total Spending</div>
+          </div>
+          
+          <div class="stat-card warning">
+            <div class="stat-icon">
+              <i class="fas fa-shopping-bag"></i>
+            </div>
+            <div class="stat-value">{{ total_purchases }}</div>
+            <div class="stat-label" style="margin-bottom: 8px;margin-left: 15px;" >Total Purchases</div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-icon">
+              <i class="fas fa-calendar-week"></i>
+            </div>
+            <div class="stat-value">{{ recent_purchases|length }}</div>
+            <div class="stat-label" style="margin-bottom: 8px;margin-left: 15px;" >Recent Purchases</div>
+          </div>
+        </div>
+
+        <!-- Recent Purchases Section -->
+        <div class="recent-purchases">
+          <h2 class="section-title">
+            <i class="fas fa-clock me-2"></i>
+            Recent Purchases
+          </h2>
+          
+          {% if recent_purchases %}
+          <ul class="purchase-list">
+            {% for purchase in recent_purchases %}
+            <li class="purchase-item">
+              <!-- <div class="purchase-header">
+                <div class="purchase-store">
+                  <i class="fas fa-store me-2"></i>
+                  {{ purchase.store.name }}
+                </div>
+                <div class="purchase-amount">
+                  ₹{{ purchase.total_amount|floatformat:2 }}
+                </div>
+              </div> -->
+              <div class="purchase-header">
+                <div class="purchase-store">
+                  <i class="fas fa-store me-2"></i>
+                  {% if purchase.receipts.exists %}
+                    {% with receipt=purchase.receipts.first %}
+                      {% if receipt.store_name %}
+                        {{ receipt.store_name }}
+                      {% else %}
+                        Unknown Store
+                      {% endif %}
+                    {% endwith %}
+                  {% else %}
+                    {{ purchase.store.name }}
+                  {% endif %}
+                </div>
+                <div class="purchase-amount">
+                  {% if purchase.receipts.exists %}
+                    {% with receipt=purchase.receipts.first %}
+                      ₹{{ receipt.total|default:purchase.total_amount|floatformat:2 }}
+                    {% endwith %}
+                  {% else %}
+                    ₹{{ purchase.total_amount|floatformat:2 }}
+                  {% endif %}
+                </div>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <div class="purchase-date">
+                  <i class="fas fa-calendar-alt me-1"></i>
+                  {{ purchase.date }}
+                </div>
+                <div class="d-flex gap-2">
+                  {% if purchase.receipts.exists %}
+                  <span class="badge bg-success">
+                    <i class="fas fa-image me-1"></i>
+                    {{ purchase.receipts.count }} receipt{{ purchase.receipts.count|pluralize }}
+                  </span>
+                  {% endif %}
+                  <a href="{% url 'purchase_detail' purchase.id %}" class="btn btn-sm btn-outline-primary">
+                    <i class="fas fa-eye me-1"></i>
+                    View Details
+                  </a>
+                </div>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <div class="empty-state">
+            <div class="empty-state-icon">
+              <i class="fas fa-shopping-cart"></i>
+            </div>
+            <div class="empty-state-text">No purchases yet</div>
+            <a href="{% url 'purchase_add' %}" class="btn btn-primary">
+              <i class="fas fa-plus me-1"></i>
+              Add Your First Purchase
+            </a>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row g-3 mt-4">
+          <div class="col-md-4">
+            <div class="stat-card">
+              <div class="d-flex align-items-center">
+                <div class="stat-icon me-3">
+                  <i class="fas fa-plus"></i>
+                </div>
+                <div>
+                  <h5 class="mb-1">Add New Purchase</h5>
+                  <p class="text-muted small mb-0">Record your latest grocery shopping</p>
+                </div>
+              </div>
+              <a href="{% url 'purchase_add' %}" class="btn btn-primary mt-3 w-100">
+                <i class="fas fa-plus me-1"></i>
+                Add Purchase
+              </a>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="stat-card">
+              <div class="d-flex align-items-center">
+                <div class="stat-icon me-3">
+                  <i class="fas fa-upload"></i>
+                </div>
+                <div>
+                  <h5 class="mb-1">Upload Receipt</h5>
+                  <p class="text-muted small mb-0">Add receipt images to your purchases</p>
+                </div>
+              </div>
+              <a href="{% url 'upload_receipt' %}" class="btn btn-outline-primary mt-3 w-100" >
+                <i class="fas fa-upload me-1"></i> Upload Receipt
+              </a>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="stat-card">
+              <div class="d-flex align-items-center">
+                <div class="stat-icon me-3">
+                  <i class="fas fa-list"></i>
+                </div>
+                <div>
+                  <h5 class="mb-1">View All Purchases</h5>
+                  <p class="text-muted small mb-0">Browse your complete purchase history</p>
+                </div>
+              </div>
+              <a href="{% url 'purchase_list' %}" class="btn btn-outline-primary mt-3 w-100">
+                <i class="fas fa-list me-1"></i>
+                View All
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ===== Upload Receipt ===== #}
+    {% if view_type == "upload" %}
+    <div id="upload-receipt" class="view active">
+      <div class="container my-5">
+        <div class="mb-3">
+          <a href="{% url 'dashboard' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+          </a>
+        </div>
+
+        <div class="row justify-content-center">
+          <div class="col-md-8 col-lg-6">
+            <div class="upload-card">
+              <div class="upload-header text-center mb-4">
+                <div class="upload-icon">
+                  <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <h1 class="upload-title">Upload Receipt</h1>
+                <p class="text-muted">Add receipt images to your purchases for better tracking</p>
+              </div>
+
+              <form method="post" enctype="multipart/form-data" class="upload-form" id="upload-form-page">
+                {% csrf_token %}
+
+                <div class="form-group mb-4">
+                  <label for="{{ form.purchase.id_for_label }}" class="form-label">
+                    <i class="fas fa-shopping-bag me-2"></i>
+                    Select Purchase
+                  </label>
+                  {{ form.purchase }}
+                  {% if form.purchase.errors %}
+                    <div class="invalid-feedback d-block">
+                      {{ form.purchase.errors }}
+                    </div>
+                  {% endif %}
+                </div>
+
+                <div class="form-group mb-4">
+                  <label for="{{ form.image.id_for_label }}" class="form-label">
+                    <i class="fas fa-image me-2"></i>
+                    Receipt Image
+                  </label>
+                  <div class="file-upload-wrapper">
+                    <label class="file-upload-area w-100" id="file-drop-area-page">
+                      <div class="file-upload-content">
+                        <i class="fas fa-cloud-upload-alt file-upload-icon"></i>
+                        <p class="file-upload-text"><strong>Click to upload</strong> or drag and drop</p>
+                        <p class="file-upload-hint">PNG, JPG, JPEG up to 10MB</p>
+                      </div>
+                      <input type="file" name="image" id="id_image_modal" accept="image/*" class="form-control" required>
+                    </label>
+
+                    <div class="file-preview mt-2 d-none" id="file-preview-page">
+                      <img id="preview-image-page" src="#" alt="Preview" class="preview-img mb-2">
+                      <button type="button" class="btn btn-sm btn-danger remove-file" id="remove-file-page">
+                        <i class="fas fa-times"></i> Remove
+                      </button>
+                    </div>
+                  </div>
+                  {% if form.image.errors %}
+                    <div class="invalid-feedback d-block">
+                      {{ form.image.errors }}
+                    </div>
+                  {% endif %}
+                </div>
+
+                <div class="file-preview d-none" id="file-preview-modal">
+                  <img id="preview-image-modal" src="#" class="preview-img" />
+                  <button type="button" class="btn btn-sm btn-danger remove-file" id="remove-file-modal">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="fas fa-upload me-2"></i>
+                    Upload Receipt
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ===== Purchase List ===== #}
+    {% if view_type == "list" %}
+    <div id="purchase-list" class="view active">
+      <div class="container my-5">
+        <div class="page-header text-center mb-5">
+          <h1 class="page-title position-relative">Your Purchases</h1>
+          <p class="text-muted">Track and manage your grocery shopping history</p>
+        </div>
+        <div class="row g-4" id="purchase-grid">
+          {% for purchase in purchases %}
+          <div class="col-md-6 col-lg-4">
+            <div class="purchase-card">
+              <div class="card-overlay"></div>
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="purchase-store fw-semibold text-primary">{{ purchase.store.name }}</div>
+                <div class="purchase-date badge bg-light text-dark">{{ purchase.date }}</div>
+              </div>
+              <div class="purchase-amount fw-bold text-success fs-4 mb-2">₹{{ purchase.total_amount }}</div>
+              <div class="purchase-items text-muted small mb-3">
+                {{ purchase.items.count }} items
+                {% if purchase.receipts.exists %}
+                <span class="badge bg-success ms-2">
+                  <i class="fas fa-image me-1"></i>
+                  {{ purchase.receipts.count }}
+                </span>
+                {% endif %}
+              </div>
+              <div class="d-flex gap-2">
+                <a href="{% url 'purchase_detail' purchase.id %}" class="btn btn-primary btn-sm flex-fill">
+                  <i class="fas fa-eye me-1"></i> View Details
+                </a>
+                {% if not purchase.receipts.exists %}
+                <a href="{% url 'upload_receipt' %}?purchase={{ purchase.id }}" class="btn btn-outline-secondary btn-sm">
+                  <i class="fas fa-upload"></i>
+                </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <div class="empty-state text-center py-5">
+            <i class="fas fa-shopping-cart empty-icon"></i>
+            <h3 class="mt-3 mb-2">No purchases yet</h3>
+            <p class="text-muted">Start by uploading your first receipt or manually adding a purchase</p>
+          {% endfor %}
+        </div>
+        <div class="text-center mt-4">
+          <div class="d-flex gap-3 justify-content-center">
+            <a href="{% url 'purchase_add' %}" class="btn btn-primary">
+              <i class="fas fa-plus me-1"></i> Add Purchase
+            </a>
+            <a href="{% url 'upload_receipt' %}" class="btn btn-outline-secondary">
+              <i class="fas fa-upload me-1"></i> Upload Receipt
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    </div>
+    
+    {# ===== Purchase Detail ===== #}
+    {% if view_type == "detail" %}
+    <div id="purchase-detail" class="view active">
+      <div class="container my-5">
+        <div class="mb-3">
+          <a href="{% url 'purchase_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Purchases
+          </a>
+        </div>
+        <div class="detail-card">
+          <div class="detail-header text-center mb-4">
+            <h1 class="detail-title">{{ purchase.store.name }}</h1>
+            <p class="text-muted">{{ purchase.date }}</p>
+            <h3 class="text-success">₹{{ purchase.total_amount }}</h3>
+          </div>
+          
+          <!-- Receipt Images Section -->
+          {% if purchase.receipts.exists %}
+          <div class="receipts-section mb-4">
+            <h3 class="receipts-title mb-3">
+              <i class="fas fa-image me-2"></i>
+              Receipt Images
+            </h3>
+            <div class="row g-3">
+              {% for receipt in purchase.receipts.all %}
+              <div class="col-md-4">
+                <div class="receipt-card">
+                  <img src="{{ receipt.image.url }}" alt="Receipt" class="receipt-image" data-bs-toggle="modal" data-bs-target="#receiptModal{{ receipt.id }}">
+                  <div class="receipt-info">
+                    <small class="text-muted">
+                      <i class="fas fa-calendar me-1"></i>
+                      {{ receipt.uploaded_at|date:"M d, Y" }}
+                    </small>
+                  </div>
+                </div>
+                
+                <!-- Receipt Modal -->
+                <div class="modal fade" id="receiptModal{{ receipt.id }}" tabindex="-1">
+                  <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Receipt Image</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                      </div>
+                      <div class="modal-body text-center">
+                        <img src="{{ receipt.image.url }}" alt="Receipt" class="img-fluid">
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          
+          <div class="items-section">
+            <h2 class="items-title mb-3">Items Purchased</h2>
+            <ul class="list-group">
+              {% for item in purchase.items.all %}
+              <li class="list-group-item d-flex justify-content-between">
+                <span>{{ item.product.name }} × {{ item.quantity }}</span>
+                <span>₹{{ item.price }}</span>
+              </li>
+              {% endfor %}
+            </ul>
+          </div>
+          
+          {% if not purchase.receipts.exists %}
+          <div class="text-center mt-4">
+            <a href="{% url 'upload_receipt' %}?purchase={{ purchase.id }}" class="btn btn-outline-secondary">
+              <i class="fas fa-upload me-1"></i>
+              Add Receipt Image
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ===== Add Purchase ===== #}
+    {% if view_type == "add" %}
+    <div id="purchase-add" class="view active">
+      <div class="container my-5">
+        <div class="mb-3">
+          <a href="{% url 'purchase_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i> Back to Purchases
+          </a>
+        </div>
+        <h1 class="mb-4">Add Purchase</h1>
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <button type="submit" class="btn btn-primary mt-2">Save Purchase</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ===== Analytics ===== #}
+    {% if view_type == "analytics" %}
+    
+    <div id="analytics" class="view active">
+      <div class="container my-5">
+        <h1 class="mb-4">Analytics</h1>
+        <!-- Add your analytics content here -->
+        {% if product_predictions %}
+          <h2>Product Runout Predictions</h2>
+          <ul>
+            {% for prediction in product_predictions %}
+              <li>
+                {{ prediction.product_name }} — Predicted runout in {{ prediction.predicted_days_until_runout }} days
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>No product predictions available.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% block content %}
+    <div class="container mt-5">
+      <h2 class="mb-4">Ask Your Data</h2>
+
+      <form method="post" action="{% url 'analytics' %}">
+        {% csrf_token %}
+        <div class="form-group">
+          <input type="text" name="query" class="form-control" placeholder="E.g., Show milk consumption over time" required>
+        </div>
+        <button type="submit" class="btn btn-primary mt-2">Ask</button>
+      </form>
+
+      {% if error %}
+        <div class="alert alert-danger mt-3">{{ error }}</div>
+      {% endif %}
+
+      {% if llm_response %}
+        <div class="alert alert-info mt-4">
+          <strong>Answer:</strong> {{ llm_response }}
+        </div>
+      {% endif %}
+      {% if chart_data %}
+        <div class="mt-4">
+          <canvas id="chartCanvas" width="400" height="200"></canvas>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+          const ctx = document.getElementById('chartCanvas').getContext('2d');
+          const myChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: {{ chart_data.labels|safe }},
+              datasets: [{
+                label: 'Product Consumption',
+                data: {{ chart_data.values|safe }},
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
+              }
+            }
+          });
+        </script>
+      {% endif %}
+
+    </div>
+    {% endblock %}
+
+    {% endif %}
+
+    {% if view_type == "profile" %}
+    <div class="container my-5" style="max-width: 700px;">
+      {% if user.is_authenticated %}
+        <h2 class="mb-4">Your Profile</h2>
+
+        <div class="mb-3">
+          <strong>Username:</strong> {{ user.username }}<br>
+          <strong>Email:</strong> {{ user.email }}
+        </div>
+
+        <!-- Update Email -->
+        <h4>Update Email</h4>
+        <form method="post" action="{% url 'update_email' %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="email" class="form-label">New Email</label>
+            <input type="email" class="form-control form-control-md" id="email" name="email" required>
+          </div>
+          <button type="submit" class="btn btn-primary mb-4">Update Email</button>
+        </form>
+
+        <!-- Update Password -->
+        <h4>Update Password</h4>
+        <form method="post" action="{% url 'update_password' %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="old_password" class="form-label">Current Password</label>
+            <input type="password" class="form-control form-control-md" id="old_password" name="old_password" required>
+          </div>
+          <div class="mb-3">
+            <label for="new_password1" class="form-label">New Password</label>
+            <input type="password" class="form-control form-control-md" id="new_password1" name="new_password1" required>
+          </div>
+          <div class="mb-3">
+            <label for="new_password2" class="form-label">Confirm New Password</label>
+            <input type="password" class="form-control form-control-md" id="new_password2" name="new_password2" required>
+          </div>
+          <button type="submit" class="btn btn-primary mb-4">Update Password</button>
+        </form>
+
+        {% if messages %}
+          <div class="my-3">
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <!-- Logout -->
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger mb-4">Log Out</button>
+        </form>
+
+        <hr>
+
+        <!-- Add Account Section (Login/Signup Tabs) -->
+        <h4 class="mt-4">Add Account</h4>
+        <ul class="nav nav-tabs mb-3" id="authTab" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">Login</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="signup-tab" data-bs-toggle="tab" data-bs-target="#signup" type="button" role="tab">Sign Up</button>
+          </li>
+        </ul>
+
+        <div class="tab-content" id="authTabContent">
+          <!-- Login Form -->
+          <div class="tab-pane fade show active" id="login" role="tabpanel">
+            <form method="post" action="{% url 'login' %}">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label for="login_username" class="form-label">Username</label>
+                <input type="text" class="form-control form-control-md" id="login_username" name="username" required>
+              </div>
+              <div class="mb-3">
+                <label for="login_password" class="form-label">Password</label>
+                <input type="password" class="form-control form-control-md" id="login_password" name="password" required>
+              </div>
+              <button type="submit" class="btn btn-primary">Log In</button>
+            </form>
+          </div>
+
+          <!-- Signup Form -->
+          <div class="tab-pane fade" id="signup" role="tabpanel">
+            <form method="post" action="{% url 'signup' %}">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label for="signup_username" class="form-label">Username</label>
+                <input type="text" class="form-control form-control-md" id="signup_username" name="username" required>
+              </div>
+              <div class="mb-3">
+                <label for="signup_email" class="form-label">Email</label>
+                <input type="email" class="form-control form-control-md" id="signup_email" name="email" required>
+              </div>
+              <div class="mb-3">
+                <label for="signup_password1" class="form-label">Password</label>
+                <input type="password" class="form-control form-control-md" id="signup_password1" name="password1" required>
+              </div>
+              <div class="mb-3">
+                <label for="signup_password2" class="form-label">Confirm Password</label>
+                <input type="password" class="form-control form-control-md" id="signup_password2" name="password2" required>
+              </div>
+              <button type="submit" class="btn btn-success">Sign Up</button>
+            </form>
+          </div>
+        </div>
+
+      {% endif %}
+    </div>
+    {% endif %}
+
+
+    <!-- <div id="analytics" class="container my-5">
+      <h2>Interactive Analytics</h2>
+
+      <form id="sqlForm" class="mb-4">
+        <div class="mb-3">
+          <textarea class="form-control" id="sqlInput" rows="3" placeholder="e.g. SELECT purchase__date AS date, SUM(quantity) AS qty FROM core_purchaseitem GROUP BY date"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Run Query</button>
+      </form>
+
+      <canvas id="sqlChart"></canvas>
+
+      <div id="errorMsg" class="text-danger mt-2"></div>
+    </div>
+    <form id="productFilterForm" class="mb-3">
+      <label>Select product:</label>
+      <select id="productSelect" class="form-control">
+        <option value="">All Products</option>
+        <option value="Milk">Milk</option>
+        <option value="Eggs">Eggs</option>
+        <option value="Bread">Bread</option>
+        <!-- Add more as needed -->
+      <!-- </select>
+
+      <label>Start Date:</label>
+      <input type="date" id="startDate" class="form-control">
+
+      <label>End Date:</label>
+      <input type="date" id="endDate" class="form-control">
+
+      <button type="submit" class="btn btn-primary mt-2">Show Consumption</button>
+    </form>
+
+    <canvas id="productChart" height="100"></canvas> -->
+  </main>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+  <script src="{% static 'script.js' %}"></script>
+</body>
+</html>
