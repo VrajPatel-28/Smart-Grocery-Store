@@ -14,7 +14,7 @@ from django.contrib.auth import (
 )
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import (
-    PasswordChangeForm, )
+    PasswordChangeForm, AuthenticationForm)
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Sum
 from django.http import HttpResponseRedirect
@@ -25,7 +25,7 @@ from django.views import View
 from django.views.decorators.http import require_http_methods
 from django.views.generic import DetailView, ListView, TemplateView
 from django.views.generic.edit import CreateView
-
+from django.utils.decorators import method_decorator
 from .forms import CustomUserCreationForm, ReceiptForm
 from .models import Product, Purchase, PurchaseItem, Receipt, Store
 from .utils import (
@@ -117,104 +117,6 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         })
         return ctx
 
-
-# class ReceiptUploadView(LoginRequiredMixin, CreateView):
-#     model = Receipt
-#     form_class = ReceiptForm
-#     template_name = "base.html"  # assumes this is reused
-#     success_url = reverse_lazy("dashboard")
-
-#     def form_valid(self, form):
-#         form.instance.user = self.request.user
-#         receipt = form.save()
-
-#         items_df, store, total, failure_reasons = process_receipt_image(
-#             receipt.image.path)
-
-#         receipt.store_name = store
-#         receipt.total = total
-#         receipt.extracted_data = items_df.to_dict(
-#             orient="records") if not items_df.empty else []
-#         receipt.save()
-
-#         if failure_reasons:
-#             fail_msg = "OCR incomplete: " + "; ".join(failure_reasons)
-#             messages.warning(self.request, fail_msg)
-#         else:
-#             messages.success(self.request,
-#                              "Receipt uploaded and parsed successfully.")
-
-#         return HttpResponseRedirect(reverse("dashboard"))
-
-#     def get_context_data(self, **kwargs):
-#         context = super().get_context_data(**kwargs)
-#         context['view_type'] = "upload"
-#         return context
-
-# class ReceiptUploadView(LoginRequiredMixin, CreateView):
-#     model = Receipt
-#     form_class = ReceiptForm
-#     template_name = "base.html"  # customize if needed
-
-#     def get_success_url(self):
-#         if hasattr(self.object, 'purchase') and self.object.purchase:
-#             return reverse('purchase_detail', args=[self.object.purchase.id])
-#         return reverse_lazy("dashboard")
-
-#     def form_valid(self, form):
-#         form.instance.user = self.request.user
-#         receipt = form.save(commit=False)
-
-#         relative_path = f"/home/runner/workspace/media/receipts/{receipt.image.name}"
-#         items_df, store_name, total_amount, failure_reasons = process_receipt_image(
-#             relative_path)
-
-#         # Attach extracted data to receipt
-#         receipt.store_name = store_name or "Unknown"
-#         receipt.total = total_amount
-#         receipt.extracted_data = items_df.to_dict(
-#             orient="records") if not items_df.empty else []
-#         receipt.save()
-
-#         # Create or obtain Store
-#         store_obj, _ = Store.objects.get_or_create(
-#             name=store_name or "Unknown")
-
-#         # Create a Purchase record
-#         purchase = Purchase.objects.create(user=self.request.user,
-#                                            store=store_obj,
-#                                            date=timezone.now().date(),
-#                                            total_amount=total_amount or 0.0)
-#         receipt.purchase = purchase
-#         receipt.save()
-
-#         # Create PurchaseItems, one per item row
-#         for _, row in items_df.iterrows():
-#             product_obj, _ = Product.objects.get_or_create(
-#                 name=row["item_name"])
-#             PurchaseItem.objects.create(purchase=purchase,
-#                                         product=product_obj,
-#                                         quantity=row["quantity"],
-#                                         price=row["price"])
-
-#         # User feedback: OCR warnings or success
-#         if failure_reasons:
-#             messages.warning(
-#                 self.request,
-#                 "OCR partially succeeded: " + "; ".join(failure_reasons))
-#         else:
-#             messages.success(self.request,
-#                              "Receipt uploaded and processed successfully.")
-
-#         self.object = receipt
-#         return HttpResponseRedirect(self.get_success_url())
-
-#     def get_context_data(self, **kwargs):
-#         ctx = super().get_context_data(**kwargs)
-#         ctx['view_type'] = "upload"
-#         return ctx
-
-
 class ReceiptUploadView(LoginRequiredMixin, CreateView):
     model = Receipt
     form_class = ReceiptForm
@@ -304,25 +206,6 @@ class ReceiptUploadView(LoginRequiredMixin, CreateView):
 
 
 class AnalyticsView(LoginRequiredMixin, TemplateView):
-    # template_name = "base.html"
-
-    # def get_context_data(self, **kwargs):
-    #     ctx = super().get_context_data(**kwargs)
-    #     user_purchases = Purchase.objects.filter(user=self.request.user)
-
-    #     ctx.update({
-    #         "view_type":
-    #         "analytics",
-    #         "recent_purchases":
-    #         user_purchases.order_by("-date")[:5],
-    #         "total_spent":
-    #         user_purchases.aggregate(total=Sum("total_amount"))["total"] or 0,
-    #         "total_purchases":
-    #         user_purchases.count(),
-    #         "product_predictions":
-    #         get_product_runout_predictions(self.request.user)  # ⬅️ New context
-    #     })
-    #     return ctx
     template_name = "base.html"
 
     def get_context_data(self, **kwargs) -> Dict[str, Any]:
@@ -460,74 +343,32 @@ class SignupView(View):
             return redirect('profile')
         return render(request, "base.html", {"form": form})
 
-
+@method_decorator(require_http_methods(["GET", "POST"]), name='dispatch')
 class CustomLoginView(View):
 
-    def post(self, request):
-        username = request.POST.get('username')
-        password = request.POST.get('password')
-        user = authenticate(request, username=username, password=password)
-        if user:
-            login(request, user)
-            return redirect('profile')
+    def get(self, request):
+        form = AuthenticationForm()
         return render(request, 'base.html', {
-            'error': 'Invalid credentials',
-            'view_type': 'profile'
+            'form': form,
+            'view_type': 'login',
         })
 
-
-@login_required
-@require_http_methods(["GET", "POST"])
-def run_sql_query(request):
-    template_name = 'base.html'
-    context: Dict[str, Any] = {"view_type": "analytics"}
-
-    if request.method == "POST":
-        query = request.POST.get("query")
-        context["llm_query"] = query
-
-        if not query:
-            context["error"] = "No query provided."
-            return render(request, template_name, context)
-
-        data = list(PurchaseItem.objects.all().values('product__name',
-                                                      'quantity', 'price',
-                                                      'purchase__date'))
-
-        prompt = f"""
-        You are a helpful assistant analyzing grocery purchase data.
-
-        DATA (JSON-like rows):
-        {data}
-
-        USER QUESTION:
-        "{query}"
-
-        👇 INSTRUCTIONS:
-        If the answer can be visualized, return a JSON with two keys: "labels" and "values".
-        Example: {{"labels": ["Milk", "Eggs"], "values": [5, 2]}}
-
-        Otherwise, return a short natural language answer.
-        """
-
-        raw_response = nvidia_ai.get_response(prompt)
-
-        cleaned_response = re.sub(r"<think>.*?</think>",
-                                  "",
-                                  raw_response,
-                                  flags=re.DOTALL).strip()
-
-        context["llm_response"] = cleaned_response
-        # context["llm_response"] = raw_response
-
-        # Try to extract JSON from LLM response
-        try:
-            match = re.search(r"\{.*\}", raw_response, re.DOTALL)
-            if match:
-                parsed_json = json.loads(match.group())
-                context["chart_data"] = parsed_json
-        except json.JSONDecodeError as e:
-            context[
-                "llm_response"] += f"\n\n⚠️ Failed to parse chart data: {e}"
-
-    return render(request, template_name, context)
+    def post(self, request):
+        form = AuthenticationForm(request, data=request.POST)
+        next_url = request.GET.get('next') or request.POST.get('next') or '/'
+        
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            
+            # Validate next URL to prevent open redirect attacks
+            if url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+                return redirect(next_url)
+            else:
+                return redirect('profile')  # fallback
+            
+        # Invalid form, show login with errors
+        return render(request, 'base.html', {
+            'form': form,
+            'view_type': 'login',
+        })
