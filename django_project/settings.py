@@ -33,6 +33,7 @@ else:
 
 REPLIT_DOMAINS = os.environ.get("REPLIT_DOMAINS")
 RENDER_DOMAIN = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 if REPLIT_DOMAINS:
     CSRF_TRUSTED_ORIGINS = [f"https://{domain}" for domain in REPLIT_DOMAINS.split(',')]
@@ -61,6 +62,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -127,7 +129,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 RENDER_DOMAIN = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 
 if RENDER_DOMAIN:
-    ALLOWED_HOSTS = [RENDER_DOMAIN]
+    ALLOWED_HOSTS = ['smart-grosery-store.onrender.com'] 
     CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_DOMAIN}"]
 else:
     ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
