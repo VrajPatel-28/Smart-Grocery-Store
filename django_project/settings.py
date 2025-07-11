@@ -31,17 +31,32 @@ if RENDER_EXTERNAL_HOSTNAME:
 else:
     ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
-CSRF_TRUSTED_ORIGINS = [
-    "https://" + domain for domain in os.environ["REPLIT_DOMAINS"].split(',')
-]
+REPLIT_DOMAINS = os.environ.get("REPLIT_DOMAINS")
+RENDER_DOMAIN = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+
+if REPLIT_DOMAINS:
+    CSRF_TRUSTED_ORIGINS = [f"https://{domain}" for domain in REPLIT_DOMAINS.split(',')]
+elif RENDER_DOMAIN:
+    CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_DOMAIN}"]
+else:
+    CSRF_TRUSTED_ORIGINS = ["http://localhost"]
 
 # Application definition
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 AUTH_USER_MODEL = "core.CustomUser"
 
 INSTALLED_APPS = [
-    'django.contrib.admin', 'django.contrib.auth',
-    'django.contrib.contenttypes', 'django.contrib.sessions',
-    'django.contrib.messages', 'django.contrib.staticfiles', 'core'
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'core',
 ]
 
 MIDDLEWARE = [
@@ -53,9 +68,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
 ]
 
-# Only use clickjacking protection in deployments because the Development Web View uses
-# iframes and needs to be a cross origin.
-if ("REPLIT_DEPLOYMENT" in os.environ):
+# Optional: Only use this in Replit, safe to skip if deploying elsewhere like Render
+if "REPLIT_DEPLOYMENT" in os.environ:
     MIDDLEWARE.append('django.middleware.clickjacking.XFrameOptionsMiddleware')
 
 ROOT_URLCONF = 'django_project.urls'
@@ -76,14 +90,7 @@ TEMPLATES = [
     },
 ]
 
-STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
 WSGI_APPLICATION = 'django_project.wsgi.application'
-
-# Database
-# https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
 DATABASES = {
     'default': {
@@ -92,51 +99,38 @@ DATABASES = {
     }
 }
 
-# Password validation
-# https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME':
-        'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME':
-        'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME':
-        'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME':
-        'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.0/topics/i18n/
-
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
-USE_I18N = True
-
-USE_TZ = True
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.0/howto/static-files/
-
 LOGIN_REDIRECT_URL = '/profile/'
-
-STATIC_URL = 'static/'
-
 LOGOUT_REDIRECT_URL = '/'
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ✅ Render-compatible ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS setup
+RENDER_DOMAIN = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+
+if RENDER_DOMAIN:
+    ALLOWED_HOSTS = [RENDER_DOMAIN]
+    CSRF_TRUSTED_ORIGINS = [f"https://{RENDER_DOMAIN}"]
+else:
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+    CSRF_TRUSTED_ORIGINS = ["http://localhost"]
+
+
