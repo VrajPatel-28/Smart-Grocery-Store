@@ -356,23 +356,24 @@ class CustomLoginView(View):
     def post(self, request):
         form = AuthenticationForm(request, data=request.POST)
         next_url = request.GET.get('next') or request.POST.get('next') or '/'
-        
+
         if form.is_valid():
             user = form.get_user()
             login(request, user)
-            
+            request.session['manual_login'] = True  # ✅ Prevent auto testuser login
+
             # Validate next URL to prevent open redirect attacks
             if url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
                 return redirect(next_url)
             else:
                 return redirect('profile')  # fallback
-            
+
         # Invalid form, show login with errors
         return render(request, 'base.html', {
             'form': form,
             'view_type': 'login',
         })
-
+        
 class CustomLogoutView(View):
     def post(self, request, *args, **kwargs):
         user = request.user
@@ -389,6 +390,7 @@ class CustomLogoutView(View):
             })
 
         logout(request)
+        request.session.flush()  
         messages.success(request, "You have been logged out.")
         return render(request, 'base.html', {
             'view_type': 'login'
