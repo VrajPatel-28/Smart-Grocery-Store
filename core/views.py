@@ -372,3 +372,24 @@ class CustomLoginView(View):
             'form': form,
             'view_type': 'login',
         })
+
+class CustomLogoutView(View):
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if user.is_authenticated and (user.username == 'testuser' or user.is_superuser):
+            messages.warning(request, "Logout is disabled for this user.")
+            return render(request, 'base.html', {
+                'view_type': 'profile',
+                'user_info': {
+                    'username': user.username,
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                }
+            })
+
+        logout(request)
+        messages.success(request, "You have been logged out.")
+        return render(request, 'base.html', {
+            'view_type': 'login'
+        })
