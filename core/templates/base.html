@@ -119,15 +119,6 @@
           <ul class="purchase-list">
             {% for purchase in recent_purchases %}
             <li class="purchase-item">
-              <!-- <div class="purchase-header">
-                <div class="purchase-store">
-                  <i class="fas fa-store me-2"></i>
-                  {{ purchase.store.name }}
-                </div>
-                <div class="purchase-amount">
-                  ₹{{ purchase.total_amount|floatformat:2 }}
-                </div>
-              </div> -->
               <div class="purchase-header">
                 <div class="purchase-store">
                   <i class="fas fa-store me-2"></i>
@@ -500,7 +491,6 @@
     <div id="analytics" class="view active">
       <div class="container my-5">
         <h1 class="mb-4">Analytics</h1>
-        <!-- Add your analytics content here -->
         {% if product_predictions %}
           <h2>Product Runout Predictions</h2>
           <ul>
@@ -577,7 +567,7 @@
     <div class="container my-5" style="max-width: 700px;">
       {% if user.is_authenticated %}
         <h2 class="mb-4">Your Profile</h2>
-
+        
         <div class="mb-3">
           <strong>Username:</strong> {{ user.username }}<br>
           <strong>Email:</strong> {{ user.email }}
@@ -620,13 +610,15 @@
             {% endfor %}
           </div>
         {% endif %}
-
         <!-- Logout -->
-        <form method="post" action="{% url 'logout' %}">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-danger mb-4">Log Out</button>
-        </form>
-
+      {% if user.username == 'testuser' or user.is_superuser %}
+          <button class="btn btn-danger mb-4" disabled>Logout Disabled for Admin/Testuser</button>
+      {% else %}
+          <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger mb-4">Log Out</button>
+            </form>
+      {% endif %}
         <hr>
 
         <!-- Add Account Section (Login/Signup Tabs) -->
