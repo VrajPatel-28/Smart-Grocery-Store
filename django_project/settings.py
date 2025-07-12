@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'core',
     'core.apps.CoreConfig',
+    'core.middleware.AutoLoginTestUserMiddleware',
 ]
 
 MIDDLEWARE = [
