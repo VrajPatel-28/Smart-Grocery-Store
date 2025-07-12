@@ -1,0 +1,25 @@
+store,date,total_amount,item_name,quantity,price
+Walmart,2024-07-01,230.50,Milk,2,50.00
+Walmart,2024-07-01,230.50,Eggs,1,30.00
+Walmart,2024-07-01,230.50,Bread,1,40.00
+Big Bazaar,2024-07-03,120.00,Butter,1,120.00
+Reliance Fresh,2024-07-04,310.00,Rice,2,100.00
+Reliance Fresh,2024-07-04,310.00,Toor Dal,1,90.00
+Reliance Fresh,2024-07-04,310.00,Oil,1,120.00
+DMart,2024-07-05,450.00,Detergent,2,150.00
+DMart,2024-07-05,450.00,Shampoo,1,100.00
+DMart,2024-07-05,450.00,Soap,3,50.00
+Spencer's,2024-07-06,205.00,Chips,5,25.00
+Spencer's,2024-07-06,205.00,Cookies,2,40.00
+Spencer's,2024-07-06,205.00,Juice,1,50.00
+Star Bazaar,2024-07-07,370.00,Chicken,1,200.00
+Star Bazaar,2024-07-07,370.00,Yogurt,3,50.00
+Star Bazaar,2024-07-07,370.00,Paneer,1,70.00
+SuperMart,2025-07-01,45.50,Apples,2,3.00
+SuperMart,2025-07-01,45.50,Bread,1,2.50
+SuperMart,2025-07-01,45.50,Milk,1,5.00
+MegaStore,2025-07-03,72.00,Chicken,1,15.00
+MegaStore,2025-07-03,72.00,Rice,5,4.00
+MegaStore,2025-07-03,72.00,Oil,1,10.00
+LocalShop,2025-07-05,23.75,Soap,3,2.25
+LocalShop,2025-07-05,23.75,Shampoo,1,7.00
