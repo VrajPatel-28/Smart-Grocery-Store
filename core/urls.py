@@ -14,7 +14,6 @@ from .views import (
     PurchaseListView,
     ReceiptUploadView,
     SignupView,
-    run_sql_query,
     update_email_view,
     update_password_view,
     CustomLoginView
