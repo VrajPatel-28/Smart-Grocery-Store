@@ -17,14 +17,14 @@ from .views import (
     run_sql_query,
     update_email_view,
     update_password_view,
+    CustomLoginView
 )
 
 urlpatterns = [
     path('', DashboardView.as_view(), name='dashboard'),
     path('admin/', admin.site.urls),
-    # path('analytics/query/', run_sql_query, name='ask_ai'),
     path('login/',
-         auth_views.LoginView.as_view(template_name='login.html'),
+          CustomLoginView.as_view(template_name='base.html'),
          name='login'),
     path('signup/', SignupView.as_view(), name='signup'),
     path('update-email/', update_email_view, name='update_email'),
