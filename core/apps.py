@@ -31,7 +31,7 @@ class CoreConfig(AppConfig):
                     print("✅ Test user created")
 
                 # Load CSV data
-                from your_app.models import Purchase  # ✅ Replace `your_app` with your actual app name
+                from core.models import Purchase  # ✅ Replace `your_app` with your actual app name
                 if Purchase.objects.filter(user__username='testuser').count() == 0:
                     csv_path = os.path.join(os.path.dirname(__file__), 'data.csv')
                     if os.path.exists(csv_path):
