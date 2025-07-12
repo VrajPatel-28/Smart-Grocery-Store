@@ -29,7 +29,7 @@ urlpatterns = [
     path('signup/', SignupView.as_view(), name='signup'),
     path('update-email/', update_email_view, name='update_email'),
     path('update-password/', update_password_view, name='update_password'),
-    path('logout/', LogoutView.as_view(next_page='/'), name='logout'),
+    path('logout/', CustomLogoutView.as_view(), name='logout'),
     path('purchases/', PurchaseListView.as_view(), name='purchase_list'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('purchases/<int:pk>/',
