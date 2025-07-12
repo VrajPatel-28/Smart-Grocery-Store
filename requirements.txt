@@ -1,7 +1,9 @@
 whitenoise
+psycopg2-binary==2.9.10
 dj-database-url
 Pillow>=9.0.0
 django>=3.2
+brotli
 joblib
 matplotlib
 openai
@@ -11,4 +13,5 @@ scikit-learn
 tqdm
 transformers
 gunicorn
+uvicorn
 python-dotenv
