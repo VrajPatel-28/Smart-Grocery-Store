@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from typing import Any, Dict
-
+from django.utils.http import url_has_allowed_host_and_scheme
 import joblib
 import openai
 from django.contrib import messages
