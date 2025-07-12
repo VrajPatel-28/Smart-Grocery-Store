@@ -32,7 +32,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'core',
     'core.apps.CoreConfig',
-    'core.middleware.AutoLoginTestUserMiddleware',
 ]
 
 MIDDLEWARE = [
@@ -44,6 +43,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.AutoLoginTestUserMiddleware',
 ]
 
 ROOT_URLCONF = 'django_project.urls'
