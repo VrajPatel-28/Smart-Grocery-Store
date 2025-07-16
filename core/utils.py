@@ -1,26 +1,29 @@
+import hashlib
+import json
 import logging
 import os
 import re
-from datetime import date
-from typing import List, Optional, Tuple
+from datetime import date, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 import joblib
 import pandas as pd
 import pytesseract
+from django.core.cache import cache
+from django.core.files.storage import default_storage
+from django.db.models import ExpressionWrapper, F, FloatField, Sum
 from openai import OpenAI
 from PIL import Image, ImageEnhance, ImageFilter
 
 from .models import Product, PurchaseItem
 
-pytesseract.pytesseract.tesseract_cmd = r"/nix/store/44vcjbcy1p2yhc974bcw250k2r5x5cpa-tesseract-5.3.4/bin/tesseract"
-
+# Configure logging
 logger = logging.getLogger(__name__)
 
-model_path = "core/ml_models/gradient_boosting_model.pkl"
-scaler_path = "core/ml_models/scaler.pkl"
+pytesseract.pytesseract.tesseract_cmd = r"/nix/store/44vcjbcy1p2yhc974bcw250k2r5x5cpa-tesseract-5.3.4/bin/tesseract"
 
+model_path = "core/ml_models/gradient_boosting_model.pkl"
 model = joblib.load(model_path)
-scaler = joblib.load(scaler_path)
 
 feature_order = [
     'quantity', 'price', 'days_since_last_purchase', 'total_spent',
@@ -31,10 +34,16 @@ feature_order = [
 def predict_days_until_runout_from_features(features_dict):
     try:
         features = [features_dict.get(f) for f in feature_order]
+
         if None in features:
             return None
-        scaled = scaler.transform([features])
-        prediction = model.predict(scaled)[0]
+
+        # Directly predict without scaling
+        expiry_days = features_dict.get("expiry_days", 0)
+        prediction = model.predict([
+            features
+        ])[0] + expiry_days  # Pass as a 2D array for compatibility
+
         return round(float(prediction), 2)
     except Exception:
         return None
@@ -52,22 +61,41 @@ def get_features_for_product(user, product):
     last_purchase_date = latest_purchase.purchase.date
     days_since_last = (today - last_purchase_date).days
 
-    total_quantity = sum(i.quantity for i in items)
-    total_spent = sum(float(i.price) * float(i.quantity) for i in items)
+    # Aggregate data
+    total_quantity = items.aggregate(
+        total_qty=Sum('quantity'))['total_qty'] or 0
+
+    total_spent = items.annotate(total_line=ExpressionWrapper(
+        F('price') * F('quantity'), output_field=FloatField())).aggregate(
+            total_spent=Sum('total_line'))['total_spent'] or 0
+
     total_purchases = items.count()
-
     purchase_rate = total_purchases / days_since_last if days_since_last > 0 else 0
-
     avg_price = total_spent / total_quantity if total_quantity > 0 else 0
     value_score = avg_price * total_quantity
 
+    # Handle expiry
+    if latest_purchase.expiry_date is None:
+        expiry_days = 1
+    else:
+        expiry_days = (latest_purchase.expiry_date - today).days
+
+    expiry_days = max(expiry_days, 0)
+
+    # Optional: update expiry
+    if expiry_days > 0:
+        latest_purchase.expiry_date = today + timedelta(days=expiry_days)
+        latest_purchase.save()
+
     return {
-        "quantity": latest_purchase.quantity,
-        "price": float(latest_purchase.price),
+        "quantity": total_quantity,
+        "price": avg_price,
         "days_since_last_purchase": days_since_last,
         "total_spent": total_spent,
         "purchase_rate": purchase_rate,
-        "value_score": value_score
+        "value_score": value_score,
+        "expiry_days": expiry_days,
+        "last_purchase_date": last_purchase_date.strftime('%Y-%m-%d')
     }
 
 
@@ -78,16 +106,18 @@ def get_product_runout_predictions(user):
 
     for product in purchased_products:
         features = get_features_for_product(user, product)
+
         if features:
             predicted_days = predict_days_until_runout_from_features(features)
-            if predicted_days is not None:
-                # Extract fractional part only
-                fractional_part = predicted_days - int(predicted_days)
-                # To avoid zero fractional part (e.g., 7.0), if fractional part is 0, fallback to 0.01 (about 15 minutes)
-                if fractional_part == 0:
-                    fractional_part = 0.01
 
-                # Scale fractional part to max 7 days
+            if predicted_days is not None:
+                predicted_days += features["expiry_days"]
+
+                fractional_part = predicted_days - int(predicted_days)
+
+                if fractional_part == 0:
+                    fractional_part = 0.01  # If zero, to avoid it being treated as an integer
+
                 scaled_days = fractional_part * 7
 
                 product_predictions.append({
@@ -96,10 +126,17 @@ def get_product_runout_predictions(user):
                     "predicted_days_until_runout":
                     round(scaled_days, 2),
                     "features":
-                    features
+                    features,
+                    "last_purchase_date":
+                    features["last_purchase_date"]
                 })
 
     return product_predictions
+
+
+def calculate_product_runout(product):
+    # Implement your logic for calculating how many days until this product runs out
+    return 1  # Placeholder for actual logic
 
 
 def process_receipt_image(
@@ -109,7 +146,7 @@ def process_receipt_image(
     failure_reasons = []
 
     try:
-        if not os.path.exists(image_path):
+        if not default_storage.exists(os.path.basename(image_path)):
             msg = f"Image path does not exist: {image_path}"
             logger.error(msg)
             failure_reasons.append(msg)
@@ -248,3 +285,128 @@ class NVIDIAAIWrapper:
 
 # Singleton instance
 nvidia_ai = NVIDIAAIWrapper()
+
+
+def handle_analytics_query(data: List[Dict], query: str) -> Dict[str, Any]:
+    print("🔍 Handling analytics query...")
+
+    if not query or not data:
+        logger.warning("Missing query or data.")
+        return {
+            "llm_response": {
+                "error": "No data or query provided"
+            },
+            "chart_data": None,
+            "recipe_suggestions": {}
+        }
+
+    # 🧹 Step 1: Clean + reduce data
+    cleaned_data = [
+        {
+            "product": item.get("product__name"),
+            "quantity": float(item.get("quantity", 0)),
+            "total_spent": float(item.get("total_spent", 0))
+        } for item in data[:10]  # limit to 10 items max
+    ]
+
+    # 🧠 Step 2: Create cache key
+    cache_key = hashlib.sha256(
+        (json.dumps(cleaned_data, separators=(",", ":")) +
+         query).encode("utf-8")).hexdigest()
+
+    cached_result = cache.get(cache_key)
+    if cached_result:
+        print("⚡ Returning cached analytics result.")
+        return cached_result
+
+    result = {"llm_response": "", "chart_data": None, "recipe_suggestions": {}}
+    ai = NVIDIAAIWrapper()
+
+    # === CHART GENERATION ===
+    try:
+        prompt = generate_chart_prompt(cleaned_data, query)
+        print("📤 Sending chart prompt...")
+        raw = ai.get_response(prompt)
+        print("✅ Chart response received")
+
+        cleaned = re.sub(r"<think>.*?</think>", "", raw,
+                         flags=re.DOTALL).strip()
+        result["llm_response"] = cleaned
+
+        chart_json = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if chart_json:
+            result["chart_data"] = json.loads(chart_json.group())
+            print("📊 Chart JSON parsed.")
+        else:
+            print("⚠️ Chart response not JSON.")
+            result["chart_data"] = {"error": "Invalid chart format"}
+
+    except Exception as e:
+        logger.exception("Chart generation error.")
+        result["chart_data"] = {"error": str(e)}
+
+    # === RECIPE SUGGESTIONS ===
+    try:
+        inventory = [item["product"] for item in cleaned_data]
+        recipe_prompt = generate_recipe_prompt(inventory)
+        print("📤 Sending recipe prompt...")
+        recipe_raw = ai.get_response(recipe_prompt)
+        print("✅ Recipe response received")
+        cleaned = re.sub(r"<think>.*?</think>",
+                         "",
+                         recipe_raw,
+                         flags=re.DOTALL).strip()
+        try:
+            result["recipe_suggestions"] = cleaned
+            print("🍲 Parsed recipe suggestions.")
+        except json.JSONDecodeError:
+            print("⚠️ Recipe response not JSON.")
+            result["recipe_suggestions"] = {"error": "Non-JSON response"}
+
+    except Exception as e:
+        logger.exception("Recipe generation error.")
+        result["recipe_suggestions"] = {"error": str(e)}
+
+    # 💾 Cache the result for faster reuse (e.g., 10 mins)
+    cache.set(cache_key, result, timeout=600)
+    print("✅ Finished handling analytics query. Result cached.\n")
+    return result
+
+
+def generate_chart_prompt(data: List[Dict], query: str) -> str:
+    """
+    Compact and efficient chart prompt.
+    """
+    short_data = json.dumps(data, separators=(",", ":"))
+    return f"""
+Analyze grocery data and generate a chart JSON if visualizable.
+DATA:
+{short_data}
+QUERY:
+"{query}"
+INSTRUCTIONS:
+- If visualizable, return JSON with: "labels", "values", "title", and "type" ("bar", "line", or "pie" based on best fit).
+- Prioritize simple, meaningful visualizations; use aggregates like sums or averages if data is small.
+- Example: {{"labels": ["Milk", "Eggs"], "values": [5, 2], "title": "Top Purchases", "type": "bar"}}
+- If not visualizable, return: {{"error": "No data for visualization"}}
+- Keep response minimal and direct.
+""".strip()
+
+
+def generate_recipe_prompt(inventory: List[str]) -> str:
+    """
+    Efficient prompt for waste-minimizing recipe suggestions.
+    """
+    items = ", ".join(inventory)
+    return f"""
+    Hey! I’ve got these items in my kitchen: {items}.
+
+    Can you suggest 1–2 simple, tasty recipes that would help me use them up and avoid food waste?
+
+    Please include:
+    - The recipe name
+    - Brief steps or ingredients
+    - A helpful tip for minimizing waste
+
+    Keep it casual and easy to follow. just plain text, like you’re texting a friend. 😊
+    """.strip()
