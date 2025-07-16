@@ -19,7 +19,7 @@ class Receipt(models.Model):
                                  on_delete=models.CASCADE,
                                  null=True,
                                  blank=True)
-    image = models.ImageField(upload_to='receipts/')
+    image = models.ImageField(upload_to='')
     store_name = models.CharField(max_length=255, blank=True)
     total = models.FloatField(null=True, blank=True)
     extracted_data = models.JSONField(null=True, blank=True)
@@ -64,6 +64,8 @@ class PurchaseItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.FloatField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    expiry_date = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.product.name} × {self.quantity} @ {self.price}"
