@@ -1,9 +1,6 @@
-import json
 import logging
 import os
-import re
-from typing import Any, Dict
-from django.utils.http import url_has_allowed_host_and_scheme
+
 import joblib
 import openai
 from django.contrib import messages
@@ -14,24 +11,24 @@ from django.contrib.auth import (
 )
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import (
-    PasswordChangeForm, AuthenticationForm)
+    PasswordChangeForm,
+)
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Sum
+from django.db.models import ExpressionWrapper, F, FloatField, Sum
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views import View
-from django.views.decorators.http import require_http_methods
 from django.views.generic import DetailView, ListView, TemplateView
 from django.views.generic.edit import CreateView
-from django.utils.decorators import method_decorator
+
 from .forms import CustomUserCreationForm, ReceiptForm
 from .models import Product, Purchase, PurchaseItem, Receipt, Store
-from .utils import (
+from .utils import (  # Import the new functions
     get_features_for_product,
     get_product_runout_predictions,
-    nvidia_ai,
+    handle_analytics_query,
     predict_days_until_runout_from_features,
     process_receipt_image,
 )
@@ -117,6 +114,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         })
         return ctx
 
+
 class ReceiptUploadView(LoginRequiredMixin, CreateView):
     model = Receipt
     form_class = ReceiptForm
@@ -129,11 +127,10 @@ class ReceiptUploadView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.user = self.request.user
-        receipt = form.save(commit=False)
+        receipt = form.save()
 
+        image_path = "/home/runner/workspace/media/" + receipt.image.name
         # Adjust this to match your environment or media path
-        image_path = receipt.image.path
-
         # OCR and data extraction
         items_df, store_name, total_amount, failure_reasons = process_receipt_image(
             image_path)
@@ -204,13 +201,13 @@ class ReceiptUploadView(LoginRequiredMixin, CreateView):
         ctx['view_type'] = "upload"
         return ctx
 
-
 class AnalyticsView(LoginRequiredMixin, TemplateView):
     template_name = "base.html"
 
-    def get_context_data(self, **kwargs) -> Dict[str, Any]:
+    def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         user = self.request.user
+
         user_purchases = Purchase.objects.filter(user=user)
 
         ctx.update({
@@ -225,12 +222,10 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
             "product_predictions":
             get_product_runout_predictions(user)
         })
-
         return ctx
 
     def post(self, request, *args, **kwargs):
         context = self.get_context_data(**kwargs)
-
         query = request.POST.get("query")
         context["llm_query"] = query
 
@@ -238,45 +233,30 @@ class AnalyticsView(LoginRequiredMixin, TemplateView):
             context["error"] = "No query provided."
             return self.render_to_response(context)
 
-        # Get data to send to LLM
-        data = list(PurchaseItem.objects.all().values('product__name',
-                                                      'quantity', 'price',
-                                                      'purchase__date'))
+        queryset = PurchaseItem.objects.select_related(
+            'product', 'purchase').annotate(total_spent=ExpressionWrapper(
+                F('price') * F('quantity'), output_field=FloatField()))
 
-        prompt = f"""
-        You are a helpful assistant analyzing grocery purchase data.
+        data = [{
+            'product__name': item.product.name,
+            'quantity': item.quantity,
+            'price': item.price,
+            'purchase__date': item.purchase.date.isoformat(),
+            'total_spent': item.total_spent
+        } for item in queryset]
 
-        DATA (JSON-like rows):
-        {data}
+        # Delegate AI logic to utils
+        print("Calling handle_analytics_query in utils...")
+        ai_result = handle_analytics_query(data, query)
 
-        USER QUESTION:
-        "{query}"
-
-        👇 INSTRUCTIONS:
-        If the answer can be visualized, return a JSON with two keys: "labels" and "values".
-        Example: {{"labels": ["Milk", "Eggs"], "values": [5, 2]}}
-
-        Otherwise, return a short natural language answer.
-        """
-
-        raw_response = nvidia_ai.get_response(prompt)
-
-        # Remove <think> tags and clean the output
-        cleaned_response = re.sub(r"<think>.*?</think>",
-                                  "",
-                                  raw_response,
-                                  flags=re.DOTALL).strip()
-        context["llm_response"] = cleaned_response
-
-        # Try extracting chart data from response
-        try:
-            match = re.search(r"\{.*\}", cleaned_response, re.DOTALL)
-            if match:
-                parsed_json = json.loads(match.group())
-                context["chart_data"] = parsed_json
-        except json.JSONDecodeError as e:
-            context[
-                "llm_response"] += f"\n\n⚠️ Failed to parse chart data: {e}"
+        context.update({
+            "llm_response":
+            ai_result.get("llm_response", ""),
+            "chart_data":
+            ai_result.get("chart_data"),
+            "recipe_suggestions":
+            ai_result.get("recipe_suggestions", "")
+        })
 
         return self.render_to_response(context)
 
@@ -343,55 +323,17 @@ class SignupView(View):
             return redirect('profile')
         return render(request, "base.html", {"form": form})
 
-@method_decorator(require_http_methods(["GET", "POST"]), name='dispatch')
+
 class CustomLoginView(View):
 
-    def get(self, request):
-        form = AuthenticationForm()
-        return render(request, 'base.html', {
-            'form': form,
-            'view_type': 'login',
-        })
-
     def post(self, request):
-        form = AuthenticationForm(request, data=request.POST)
-        next_url = request.GET.get('next') or request.POST.get('next') or '/'
-
-        if form.is_valid():
-            user = form.get_user()
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user:
             login(request, user)
-            request.session['manual_login'] = True  # ✅ Prevent auto testuser login
-
-            # Validate next URL to prevent open redirect attacks
-            if url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
-                return redirect(next_url)
-            else:
-                return redirect('profile')  # fallback
-
-        # Invalid form, show login with errors
+            return redirect('profile')
         return render(request, 'base.html', {
-            'form': form,
-            'view_type': 'login',
-        })
-        
-class CustomLogoutView(View):
-    def post(self, request, *args, **kwargs):
-        user = request.user
-        if user.is_authenticated and (user.username == 'testuser' or user.is_superuser):
-            messages.warning(request, "Logout is disabled for this user.")
-            return render(request, 'base.html', {
-                'view_type': 'profile',
-                'user_info': {
-                    'username': user.username,
-                    'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                }
-            })
-
-        logout(request)
-        request.session.flush()  
-        messages.success(request, "You have been logged out.")
-        return render(request, 'base.html', {
-            'view_type': 'login'
+            'error': 'Invalid credentials',
+            'view_type': 'profile'
         })
