@@ -48,6 +48,31 @@
         </ul>
       </div>
     </div>
+    <li class="nav-item dropdown">
+      <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-user-circle me-1"></i> 
+        {% if user.is_authenticated %}
+          {{ user.username }}
+        {% else %}
+          Account
+        {% endif %}
+      </a>
+      <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+        {% if user.is_authenticated %}
+          <li><a class="dropdown-item" href="{% url 'profile' %}"><i class="fas fa-user me-2"></i> Profile</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <form method="post" action="{% url 'logout' %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="dropdown-item"><i class="fas fa-sign-out-alt me-2"></i> Logout</button>
+            </form>
+          </li>
+        {% else %}
+          <li><a class="dropdown-item" href="{% url 'login' %}"><i class="fas fa-sign-in-alt me-2"></i> Login</a></li>
+          <li><a class="dropdown-item" href="{% url 'signup' %}"><i class="fas fa-user-plus me-2"></i> Sign Up</a></li>
+        {% endif %}
+      </ul>
+    </li>
   </nav>
 
 <div class="container my-5">
@@ -119,6 +144,15 @@
           <ul class="purchase-list">
             {% for purchase in recent_purchases %}
             <li class="purchase-item">
+              <!-- <div class="purchase-header">
+                <div class="purchase-store">
+                  <i class="fas fa-store me-2"></i>
+                  {{ purchase.store.name }}
+                </div>
+                <div class="purchase-amount">
+                  ₹{{ purchase.total_amount|floatformat:2 }}
+                </div>
+              </div> -->
               <div class="purchase-header">
                 <div class="purchase-store">
                   <i class="fas fa-store me-2"></i>
@@ -262,7 +296,7 @@
               <form method="post" enctype="multipart/form-data" class="upload-form" id="upload-form-page">
                 {% csrf_token %}
 
-                <div class="form-group mb-4">
+                <!-- <div class="form-group mb-4">
                   <label for="{{ form.purchase.id_for_label }}" class="form-label">
                     <i class="fas fa-shopping-bag me-2"></i>
                     Select Purchase
@@ -273,7 +307,7 @@
                       {{ form.purchase.errors }}
                     </div>
                   {% endif %}
-                </div>
+                </div> -->
 
                 <div class="form-group mb-4">
                   <label for="{{ form.image.id_for_label }}" class="form-label">
@@ -486,73 +520,141 @@
     {% endif %}
 
     {# ===== Analytics ===== #}
+
     {% if view_type == "analytics" %}
-    
+
     <div id="analytics" class="view active">
       <div class="container my-5">
         <h1 class="mb-4">Analytics</h1>
+
+        <!-- Add your analytics content here -->
         {% if product_predictions %}
-          <h2>Product Runout Predictions</h2>
-          <ul>
-            {% for prediction in product_predictions %}
-              <li>
-                {{ prediction.product_name }} — Predicted runout in {{ prediction.predicted_days_until_runout }} days
-              </li>
-            {% endfor %}
-          </ul>
+        <h2>Product Runout Predictions</h2>
+        <ul class="list-group">
+          {% for prediction in product_predictions %}
+            <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
+              <div class="product-info">
+                <strong class="product-name">{{ prediction.product_name }}</strong>
+                <small class="text-muted d-block">Last purchased: {{ prediction.features.last_purchase_date }}</small>
+              </div>
+              <span class="badge bg-warning text-dark runout-badge">
+                Predicted runout in {{ prediction.predicted_days_until_runout }} days
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
         {% else %}
-          <p>No product predictions available.</p>
+        <div class="alert alert-info" role="alert">
+          No product predictions available.
+        </div>
         {% endif %}
       </div>
     </div>
+
     {% block content %}
     <div class="container mt-5">
       <h2 class="mb-4">Ask Your Data</h2>
-
-      <form method="post" action="{% url 'analytics' %}">
+      <form method="post" action="{% url 'analytics' %}" class="form-inline">
         {% csrf_token %}
-        <div class="form-group">
-          <input type="text" name="query" class="form-control" placeholder="E.g., Show milk consumption over time" required>
+        <div class="form-group mb-2">
+          <label for="query" class="sr-only">Query</label>
+          <input type="text" name="query" class="form-control" id="query" placeholder="E.g., Show milk consumption over time" required>
         </div>
-        <button type="submit" class="btn btn-primary mt-2">Ask</button>
+        <button type="submit" class="btn btn-primary mb-2">Ask</button>
       </form>
 
       {% if error %}
-        <div class="alert alert-danger mt-3">{{ error }}</div>
+      <div class="alert alert-danger mt-3">{{ error }}</div>
       {% endif %}
 
       {% if llm_response %}
-        <div class="alert alert-info mt-4">
-          <strong>Answer:</strong> {{ llm_response }}
-        </div>
+      <div class="alert alert-info mt-4">
+        <strong>Answer:</strong> {{ llm_response }}
+      </div>
+      <div class="alert alert-info mt-4">
+        <strong>Reciepes :</strong> {{ recipe_suggestions }}
+      </div>
       {% endif %}
+
       {% if chart_data %}
         <div class="mt-4">
+          <h3>Data Visualization</h3>
           <canvas id="chartCanvas" width="400" height="200"></canvas>
         </div>
-
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
           const ctx = document.getElementById('chartCanvas').getContext('2d');
+          const chartData = {{ chart_data|safe }};
+
           const myChart = new Chart(ctx, {
-            type: 'bar',
+            type: chartData.type,
             data: {
-              labels: {{ chart_data.labels|safe }},
+              labels: chartData.labels,
               datasets: [{
-                label: 'Product Consumption',
-                data: {{ chart_data.values|safe }},
-                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                borderColor: 'rgba(54, 162, 235, 1)',
+                data: chartData.values,
+                backgroundColor: [
+                  '#8e44ad', '#2980b9', '#27ae60', '#f39c12', '#c0392b',
+                  '#16a085', '#34495e', '#d35400', '#9b59b6', '#2c3e50'
+                ],
                 borderWidth: 1
               }]
             },
             options: {
               responsive: true,
-              scales: {
-                y: {
-                  beginAtZero: true
+              plugins: {
+                legend: {
+                  position: 'bottom'
                 }
               }
+            }
+          });
+        </script>
+      {% elif product_predictions %}
+        <div class="mt-4">
+          <h3>Default Data Visualization</h3>
+          <h5>For all Product consumption over time </h5>
+          <canvas id="chartCanvas" style="width: 400;"></canvas>
+        </div>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+          const ctx = document.getElementById('chartCanvas').getContext('2d');
+
+          const defaultChartData = {
+            type: 'pie',
+            labels: ['Milk', 'Eggs', 'Bread', 'Butter', 'Rice', 'Toor Dal', 'Oil', 'Detergent', 'Shampoo', 'Soap'],
+            values: [100, 30, 40, 120, 200, 90, 120, 300, 100, 150]
+          };
+
+          const myChart = new Chart(ctx, {
+            type: defaultChartData.type,
+            data: {
+              labels: defaultChartData.labels,
+              datasets: [{
+                data: defaultChartData.values,
+                backgroundColor: [
+                  'rgba(173, 216, 230, 0.4)', // LightBlue Neon
+                  'rgba(186, 85, 211, 0.4)',  // MediumOrchid
+                  'rgba(144, 238, 144, 0.4)', // LightGreen
+                  'rgba(255, 182, 193, 0.4)', // LightPink
+                  'rgba(0, 255, 255, 0.4)',   // Aqua
+                  'rgba(255, 105, 180, 0.4)', // HotPink
+                  'rgba(72, 209, 204, 0.4)',  // MediumTurquoise
+                  'rgba(255, 160, 122, 0.4)', // LightSalmon
+                  'rgba(221, 160, 221, 0.4)', // Plum
+                  'rgba(135, 206, 250, 0.4)'  // LightSkyBlue
+                ],
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  size: 100
+                }
+              },
+              cutout: '40%',
             }
           });
         </script>
@@ -564,155 +666,138 @@
     {% endif %}
 
     {% if view_type == "profile" %}
-    <div class="container my-5" style="max-width: 700px;">
-      {% if user.is_authenticated %}
-        <h2 class="mb-4">Your Profile</h2>
-        
-        <div class="mb-3">
-          <strong>Username:</strong> {{ user.username }}<br>
-          <strong>Email:</strong> {{ user.email }}
+        <div class="profile-container">
+          {% if user.is_authenticated %}
+
+            <!-- Profile Header -->
+            <div class="profile-header">
+              <h2>Your Profile</h2>
+              <div class="profile-info">
+                <div class="profile-info-item">
+                  <strong>Username</strong>
+                  <span>{{ user.username }}</span>
+                </div>
+                <div class="profile-info-item">
+                  <strong>Email</strong>
+                  <span>{{ user.email }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Messages -->
+            {% if messages %}
+              <div class="messages-container">
+                {% for message in messages %}
+                  <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <!-- Update Email Card -->
+            <div class="profile-card">
+              <h4>Update Email</h4>
+              <form method="post" action="{% url 'update_email' %}" class="enhanced-form">
+                {% csrf_token %}
+                <div class="form-group">
+                  <label for="email" class="form-label">New Email Address</label>
+                  <input type="email" class="form-control" id="email" name="email" placeholder="Enter your new email" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Update Email</button>
+              </form>
+            </div>
+
+            <!-- Update Password Card -->
+            <div class="profile-card">
+              <h4>Update Password</h4>
+              <form method="post" action="{% url 'update_password' %}" class="enhanced-form">
+                {% csrf_token %}
+                <div class="form-group">
+                  <label for="old_password" class="form-label">Current Password</label>
+                  <input type="password" class="form-control" id="old_password" name="old_password" placeholder="Enter current password" required>
+                </div>
+                <div class="form-group">
+                  <label for="new_password1" class="form-label">New Password</label>
+                  <input type="password" class="form-control" id="new_password1" name="new_password1" placeholder="Enter new password" required>
+                </div>
+                <div class="form-group">
+                  <label for="new_password2" class="form-label">Confirm New Password</label>
+                  <input type="password" class="form-control" id="new_password2" name="new_password2" placeholder="Confirm new password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Update Password</button>
+              </form>
+            </div>
+
+            <!-- Logout Section -->
+            <div class="logout-section">
+              <p>Ready to sign out? This will end your current session.</p>
+              <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">Log Out</button>
+              </form>
+            </div>
+
+            <hr class="divider">
+
+            <!-- Add Account Section -->
+            <div class="profile-card">
+              <h4>Add Another Account</h4>
+
+              <ul class="nav nav-tabs" id="authTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">Login</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="signup-tab" data-bs-toggle="tab" data-bs-target="#signup" type="button" role="tab">Sign Up</button>
+                </li>
+              </ul>
+
+              <div class="tab-content" id="authTabContent">
+                <!-- Login Form -->
+                <div class="tab-pane fade show active" id="login" role="tabpanel">
+                  <form method="post" action="{% url 'login' %}" class="enhanced-form">
+                    {% csrf_token %}
+                    <div class="form-group">
+                      <label for="login_username" class="form-label">Username</label>
+                      <input type="text" class="form-control" id="login_username" name="username" placeholder="Enter username" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="login_password" class="form-label">Password</label>
+                      <input type="password" class="form-control" id="login_password" name="password" placeholder="Enter password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Log In</button>
+                  </form>
+                </div>
+
+                <!-- Signup Form -->
+                <div class="tab-pane fade" id="signup" role="tabpanel">
+                  <form method="post" action="{% url 'signup' %}" class="enhanced-form">
+                    {% csrf_token %}
+                    <div class="form-group">
+                      <label for="signup_username" class="form-label">Username</label>
+                      <input type="text" class="form-control" id="signup_username" name="username" placeholder="Choose a username" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="signup_email" class="form-label">Email</label>
+                      <input type="email" class="form-control" id="signup_email" name="email" placeholder="Enter your email" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="signup_password1" class="form-label">Password</label>
+                      <input type="password" class="form-control" id="signup_password1" name="password1" placeholder="Create a password" required>
+                    </div>
+                    <div class="form-group">
+                      <label for="signup_password2" class="form-label">Confirm Password</label>
+                      <input type="password" class="form-control" id="signup_password2" name="password2" placeholder="Confirm your password" required>
+                    </div>
+                    <button type="submit" class="btn btn-success">Sign Up</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+
+          {% endif %}
         </div>
-
-        <!-- Update Email -->
-        <h4>Update Email</h4>
-        <form method="post" action="{% url 'update_email' %}">
-          {% csrf_token %}
-          <div class="mb-3">
-            <label for="email" class="form-label">New Email</label>
-            <input type="email" class="form-control form-control-md" id="email" name="email" required>
-          </div>
-          <button type="submit" class="btn btn-primary mb-4">Update Email</button>
-        </form>
-
-        <!-- Update Password -->
-        <h4>Update Password</h4>
-        <form method="post" action="{% url 'update_password' %}">
-          {% csrf_token %}
-          <div class="mb-3">
-            <label for="old_password" class="form-label">Current Password</label>
-            <input type="password" class="form-control form-control-md" id="old_password" name="old_password" required>
-          </div>
-          <div class="mb-3">
-            <label for="new_password1" class="form-label">New Password</label>
-            <input type="password" class="form-control form-control-md" id="new_password1" name="new_password1" required>
-          </div>
-          <div class="mb-3">
-            <label for="new_password2" class="form-label">Confirm New Password</label>
-            <input type="password" class="form-control form-control-md" id="new_password2" name="new_password2" required>
-          </div>
-          <button type="submit" class="btn btn-primary mb-4">Update Password</button>
-        </form>
-
-        {% if messages %}
-          <div class="my-3">
-            {% for message in messages %}
-              <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-            {% endfor %}
-          </div>
-        {% endif %}
-        <!-- Logout -->
-      {% if user.username == 'testuser' or user.is_superuser %}
-          <button class="btn btn-danger mb-4" disabled>Logout Disabled for Admin/Testuser</button>
-      {% else %}
-          <form method="post" action="{% url 'logout' %}">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger mb-4">Log Out</button>
-            </form>
-      {% endif %}
-        <hr>
-
-        <!-- Add Account Section (Login/Signup Tabs) -->
-        <h4 class="mt-4">Add Account</h4>
-        <ul class="nav nav-tabs mb-3" id="authTab" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">Login</button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link" id="signup-tab" data-bs-toggle="tab" data-bs-target="#signup" type="button" role="tab">Sign Up</button>
-          </li>
-        </ul>
-
-        <div class="tab-content" id="authTabContent">
-          <!-- Login Form -->
-          <div class="tab-pane fade show active" id="login" role="tabpanel">
-            <form method="post" action="{% url 'login' %}">
-              {% csrf_token %}
-              <div class="mb-3">
-                <label for="login_username" class="form-label">Username</label>
-                <input type="text" class="form-control form-control-md" id="login_username" name="username" required>
-              </div>
-              <div class="mb-3">
-                <label for="login_password" class="form-label">Password</label>
-                <input type="password" class="form-control form-control-md" id="login_password" name="password" required>
-              </div>
-              <button type="submit" class="btn btn-primary">Log In</button>
-            </form>
-          </div>
-
-          <!-- Signup Form -->
-          <div class="tab-pane fade" id="signup" role="tabpanel">
-            <form method="post" action="{% url 'signup' %}">
-              {% csrf_token %}
-              <div class="mb-3">
-                <label for="signup_username" class="form-label">Username</label>
-                <input type="text" class="form-control form-control-md" id="signup_username" name="username" required>
-              </div>
-              <div class="mb-3">
-                <label for="signup_email" class="form-label">Email</label>
-                <input type="email" class="form-control form-control-md" id="signup_email" name="email" required>
-              </div>
-              <div class="mb-3">
-                <label for="signup_password1" class="form-label">Password</label>
-                <input type="password" class="form-control form-control-md" id="signup_password1" name="password1" required>
-              </div>
-              <div class="mb-3">
-                <label for="signup_password2" class="form-label">Confirm Password</label>
-                <input type="password" class="form-control form-control-md" id="signup_password2" name="password2" required>
-              </div>
-              <button type="submit" class="btn btn-success">Sign Up</button>
-            </form>
-          </div>
-        </div>
-
-      {% endif %}
-    </div>
     {% endif %}
 
-
-    <!-- <div id="analytics" class="container my-5">
-      <h2>Interactive Analytics</h2>
-
-      <form id="sqlForm" class="mb-4">
-        <div class="mb-3">
-          <textarea class="form-control" id="sqlInput" rows="3" placeholder="e.g. SELECT purchase__date AS date, SUM(quantity) AS qty FROM core_purchaseitem GROUP BY date"></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary">Run Query</button>
-      </form>
-
-      <canvas id="sqlChart"></canvas>
-
-      <div id="errorMsg" class="text-danger mt-2"></div>
-    </div>
-    <form id="productFilterForm" class="mb-3">
-      <label>Select product:</label>
-      <select id="productSelect" class="form-control">
-        <option value="">All Products</option>
-        <option value="Milk">Milk</option>
-        <option value="Eggs">Eggs</option>
-        <option value="Bread">Bread</option>
-        <!-- Add more as needed -->
-      <!-- </select>
-
-      <label>Start Date:</label>
-      <input type="date" id="startDate" class="form-control">
-
-      <label>End Date:</label>
-      <input type="date" id="endDate" class="form-control">
-
-      <button type="submit" class="btn btn-primary mt-2">Show Consumption</button>
-    </form>
-
-    <canvas id="productChart" height="100"></canvas> -->
   </main>
   
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
