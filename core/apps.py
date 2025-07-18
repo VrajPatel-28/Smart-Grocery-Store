@@ -6,11 +6,12 @@ class CoreConfig(AppConfig):
 
     def ready(self):
         from django.db.utils import OperationalError, ProgrammingError
-        from django.contrib.auth.models import User
+        from django.contrib.auth.models import get_user_model 
         import os, csv
 
         # Delay execution to ensure full app readiness (avoids AppRegistryNotReady)
         def setup_initial_data():
+            User = get_user_model()
             try:
                 # Create superuser
                 if not User.objects.filter(username='admin').exists():
